@@ -8,6 +8,8 @@ import os
 # import my tANS function
 from Functions import Coder, Utils, CompTensor
 
+LUT_SIZE = 2**15
+
 def find_max_min_in_directory(directory, start):
     max_value = float('-inf')
     min_value = float('inf')
@@ -73,7 +75,7 @@ for model in models:
         # building the object
         # Note: the rescale_list_to_power_of_2 function ensures that the sum of the list is a power of 2
         #       and also that no element is zero (bumps up the smallest elements to 1)
-        freq = Utils.rescale_list_to_power_of_2(freq, 2**10)
+        freq = Utils.rescale_list_to_power_of_2(freq, LUT_SIZE)
         
         # append to freqs
         freqs.append(freq)
@@ -183,7 +185,7 @@ for model in models:
     freqs = [calculate_frequency(d) for d in data]
 
     # rescale the frequencies to a power of 2
-    freqs = [Utils.rescale_list_to_power_of_2(freq, 2**10) for freq in freqs]
+    freqs = [Utils.rescale_list_to_power_of_2(freq, LUT_SIZE) for freq in freqs]
 
     import time
     print("\tCompressing Activations 256")

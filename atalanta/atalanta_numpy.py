@@ -87,13 +87,13 @@ def main():
     nbits = int(args.pop(0))
     global_verbose = 0
 
-    print("INPUT FILE: ", infile)
+    #print("INPUT FILE: ", infile)
     indata = np.load(infile, encoding='latin1', fix_imports=True)
     #print(indata)
     a = apack()
 	
     pt = a.search(indata)
-    print(pt)
+    #print(pt)
     if True:
         value_cnt = 0 
         apack_bits = 0
@@ -107,13 +107,19 @@ def main():
             value_cnt += pte[4]
             #print ("A ", pte[2], pte[3], pte[4])
         inbits = value_cnt*nbits
-        print ("COMPSTATS: ", inbits, " (in_bits) ", apack_bits, " (apack_bits) ", apack_bits/inbits, " (comp_ratio) ", apack_bits/value_cnt, " (bits_per_value) ", symbol_bits, " (symbol bits) ", offset_bits, " (offset bits) ", end-start, " (search time) " )
-
+        #print ("COMPSTATS: ", inbits, " (in_bits) ", apack_bits, " (apack_bits) ", apack_bits/inbits, " (comp_ratio) ", apack_bits/value_cnt, " (bits_per_value) ", symbol_bits, " (symbol bits) ", offset_bits, " (offset bits) ", end-start, " (search time) " )
+        # only print the compression ratio
+        print(inbits/apack_bits)
+        print("GAY")
     # write output to file
     outfile = infile.split(".")[0] + ".apack"
     with open(outfile, "w") as f:
         for pte in pt:
             f.write(str(pte[0]) + " " + str(pte[1]) + " " + str(pte[2]) + " " + str(pte[3]) + " " + str(pte[4]) + "\n")
 
+    compFile = infile.split(".")[0] + ".comp"
+    with open(compFile, "w") as f:
+        f.write(str(inbits/apack_bits))
+    
 if __name__=="__main__":
    main()
