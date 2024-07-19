@@ -5,7 +5,7 @@ import math
 from tqdm import tqdm
 import os
 
-LUT_SIZE = 2**15
+LUT_SIZE = 2**10
 
 # import my tANS function
 from Functions import Coder, Utils, CompTensor

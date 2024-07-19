@@ -8,7 +8,7 @@ import os
 # import my tANS function
 from Functions import Coder, Utils, CompTensor
 
-LUT_SIZE = 2**15
+LUT_SIZE = 2**10
 
 def find_max_min_in_directory(directory, start):
     max_value = float('-inf')
