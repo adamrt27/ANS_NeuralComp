@@ -34,7 +34,7 @@ def find_max_min_in_directory(directory, start):
 
 d_base = 'trace/'
 
-models = ["mobilenet_v2", "mobilenet_v3_large"]
+models = os.listdir("trace")
 
 for model in models:
     
