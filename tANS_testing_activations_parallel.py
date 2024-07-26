@@ -189,7 +189,7 @@ def task(model):
                             "Run Time": np.mean(run_times),
                             "Build Time": np.mean(build_times),
                             "Compression Ratio": np.mean(comp_ratios),
-                            "Bits per Symbol": np.mean(bp_sym)}, ignore_index=True)
+                            "Bits per Symbol": np.mean(bp_sym)})
             
             stats_apack = pd.DataFrame(cur_stats)
             
@@ -269,7 +269,7 @@ def task(model):
                             "Run Time": np.mean(run_times),
                             "Build Time": np.mean(build_times),
                             "Compression Ratio": np.mean(comp_ratios),
-                            "Bits per Symbol": np.mean(bp_sym)}, ignore_index=True)
+                            "Bits per Symbol": np.mean(bp_sym)})
             
             stats_256 = pd.DataFrame(cur_stats)
             

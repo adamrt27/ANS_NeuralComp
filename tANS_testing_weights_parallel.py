@@ -178,7 +178,7 @@ def task(model):
                                               "Run Time": run_time_taken,
                                               "Build Time": build_time_taken,
                                               "Compression Ratio": len(msg) * nbits / total_comp_bits,
-                                              "Bits per Symbol": total_comp_bits / len(msg)}, ignore_index = True)
+                                              "Bits per Symbol": total_comp_bits / len(msg)})
             
             # save the stats to a csv file
             stats_apack.to_csv(f"{d}stats_weights_apack_{LUT_EXP}.csv", index = False)
@@ -249,7 +249,7 @@ def task(model):
                                           "Run Time": run_time_taken,
                                           "Build Time": build_time_taken,
                                           "Compression Ratio": len(msg) * nbits / comp_bits,
-                                          "Bits per Symbol": comp_bits / len(msg)}, ignore_index = True)
+                                          "Bits per Symbol": comp_bits / len(msg)})
             
             stats_256 = pd.DataFrame(cur_stats)
             
