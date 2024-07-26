@@ -38,6 +38,10 @@ d_base = 'trace/'
 
 models = os.listdir("trace")
 
+# check if gpt2 in models and remove if it is
+if "gpt2-xl" in models:
+    models.remove("gpt2-xl")
+
 def task(model):
     
     print("Running model:", model)
@@ -48,15 +52,38 @@ def task(model):
     settings = ["apack", "256"]
 
     range_ = find_max_min_in_directory(d, "input_")
-
+    
     if "apack" in settings:
-
         # create empty dataframe to store stats, if it doesnt exist
         if not os.path.exists(f"{d}stats_activations_apack_{LUT_EXP}.csv"):
             stats_apack = pd.DataFrame(columns = ["Layer", "Run Time", "Build Time", "Compression Ratio", "Bits per Symbol"])
             stats_apack.to_csv(f"{d}stats_activations_apack_{LUT_EXP}.csv", index = False)
         else:
             stats_apack = pd.read_csv(f"{d}stats_activations_apack_{LUT_EXP}.csv")
+
+        # check if the model has already been processed
+        if len(stats_apack) == range_[1] - range_[0]:
+            print("Model has already been processed")
+            settings.remove("apack")
+            
+    if "256" in settings:
+        # create empty dataframe to store stats, if it doesnt exist
+        if not os.path.exists(f"{d}stats_activations_256_{LUT_EXP}.csv"):
+            stats_256 = pd.DataFrame(columns = ["Layer", "Run Time", "Build Time", "Compression Ratio", "Bits per Symbol"])
+            stats_256.to_csv(f"{d}stats_activations_256_{LUT_EXP}.csv", index = False)
+        else:
+            stats_256 = pd.read_csv(f"{d}stats_activations_256_{LUT_EXP}.csv")
+
+        # check if the model has already been processed
+        if len(stats_256) == range_[1] - range_[0]:
+            print("Model has already been processed")
+            settings.remove("256")
+            
+    # importing the data
+    print("\tImporting data")
+    data = [np.load(f"{d}input_{i}.npy") for i in range(range_[0],range_[1])]
+
+    if "apack" in settings:
 
         # importing the symbol table
         print("\tImporting symbol tables")
@@ -66,15 +93,10 @@ def task(model):
         for s_tab in s_tabs:            
             s_tab.columns = ["vmin","OL","abits","obits","vcnt"]
 
-        # importing the data
-        print("\tImporting data")
-        data = [np.load(f"{d}input_{i}.npy") for i in range(range_[0],range_[1])]
-
         # converting each data point to a symbol, offset pair
         comp_tensors = []
         for i, dat in enumerate(tqdm(data, desc="\tConverting Data to CompTensors")):
             comp_tensors.append([CompTensor.CompTensor(d, s_tabs[i]) for d in dat])
-
 
         # Getting freqs, must be a power of 2
         print("\tGetting frequencies APack")
@@ -117,6 +139,8 @@ def task(model):
         print("\tCompressing Activations APack")
         nbits = 8 # takes 4 bits to represent each symbol
         
+        cur_stats = []
+        
         for i in tqdm(range(len(freqs)), desc="\tCompressing Layers"):
             
             # open the stats file
@@ -124,6 +148,7 @@ def task(model):
             
             # check if the layer has already been processed
             if i in stats_apack["Layer"].values:
+                cur_stats.append(dict(stats_apack[stats_apack["Layer"] == i].iloc[0]))
                 continue
             
             run_times = []
@@ -160,11 +185,13 @@ def task(model):
                 bp_sym.append(total_comp_bits / len(msg))
 
             # update the stats dataframe
-            stats_apack = stats_apack.append({"Layer": i,
-                                                "Run Time": np.mean(run_times),
-                                                "Build Time": np.mean(build_times),
-                                                "Compression Ratio": np.mean(comp_ratios),
-                                                "Bits per Symbol": np.mean(bp_sym)}, ignore_index=True)
+            cur_stats.append({"Layer": i,
+                            "Run Time": np.mean(run_times),
+                            "Build Time": np.mean(build_times),
+                            "Compression Ratio": np.mean(comp_ratios),
+                            "Bits per Symbol": np.mean(bp_sym)}, ignore_index=True)
+            
+            stats_apack = pd.DataFrame(cur_stats)
             
             # save the stats to a csv file
             stats_apack.to_csv(f"{d}stats_activations_apack_{LUT_EXP}.csv", index = False)
@@ -173,14 +200,6 @@ def task(model):
         stats_apack.to_csv(f"{d}stats_activations_apack_{LUT_EXP}.csv", index = False)
         
     if "256" in settings:
-        
-        # make dataframe to store stats, if it doesnt exist
-        if not os.path.exists(f"{d}stats_activations_256_{LUT_EXP}.csv"):
-            stats_256 = pd.DataFrame(columns = ["Layer", "Run Time", "Build Time", "Compression Ratio", "Bits per Symbol"])
-            stats_256.to_csv(f"{d}stats_activations_256_{LUT_EXP}.csv", index = False)
-        else:
-            stats_256 = pd.read_csv(f"{d}stats_activations_256_{LUT_EXP}.csv")
-
         # Calculate frequency of each uint8 value
         def calculate_frequency(array):
             # Ensure the input array is of type uint8
@@ -204,6 +223,8 @@ def task(model):
         import time
         print("\tCompressing Activations 256")
         nbits = 8 # takes 4 bits to represent each symbol
+        
+        cur_stats = []
 
         for i in tqdm(range(len(freqs)), desc="\tCompressing Layers"):
             
@@ -211,6 +232,7 @@ def task(model):
             stats_256 = pd.read_csv(f"{d}stats_activations_256_{LUT_EXP}.csv")
             
             if i in stats_256["Layer"].values:
+                cur_stats.append(dict(stats_256[stats_256["Layer"] == i].iloc[0]))
                 continue
             
             run_times = []
@@ -243,11 +265,13 @@ def task(model):
                 bp_sym.append(comp_bits / len(msg))
                 
             # update the stats dataframe
-            stats_256 = stats_256.append({"Layer": i,
-                                          "Run Time": np.mean(run_times),
-                                          "Build Time": np.mean(build_times),
-                                          "Compression Ratio": np.mean(comp_ratios),
-                                          "Bits per Symbol": np.mean(bp_sym)}, ignore_index=True)
+            cur_stats.append({"Layer": i,
+                            "Run Time": np.mean(run_times),
+                            "Build Time": np.mean(build_times),
+                            "Compression Ratio": np.mean(comp_ratios),
+                            "Bits per Symbol": np.mean(bp_sym)}, ignore_index=True)
+            
+            stats_256 = pd.DataFrame(cur_stats)
             
             # save the stats to a csv file
             stats_256.to_csv(f"{d}stats_activations_256_{LUT_EXP}.csv", index = False)
