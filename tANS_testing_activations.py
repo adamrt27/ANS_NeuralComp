@@ -8,7 +8,8 @@ import os
 # import my tANS function
 from Functions import Coder, Utils, CompTensor
 
-LUT_SIZE = 2**10
+LUT_EXP = 8
+LUT_SIZE = 2**LUT_EXP
 
 def find_max_min_in_directory(directory, start):
     max_value = float('-inf')
@@ -165,7 +166,7 @@ for model in models:
                         "Bits per Symbol": [np.mean(all_bps[i]) for i in range(len(freqs))]})
 
     # save the stats to a csv file
-    stats_apack.to_csv(f"{d}stats_activations_apack.csv", index = False)
+    stats_apack.to_csv(f"{d}stats_activations_apack_{LUT_EXP}.csv", index = False)
 
     # Calculate frequency of each uint8 value
     def calculate_frequency(array):
@@ -247,7 +248,7 @@ for model in models:
                         "Bits per Symbol": [np.mean(all_bps[i]) for i in range(len(freqs))]})
 
     # save 
-    stats_256.to_csv(f"{d}stats_activations_256.csv", index = False)
+    stats_256.to_csv(f"{d}stats_activations_256_{LUT_EXP}.csv", index = False)
 
     # print both 
     print("\tAverage Compression Ratio Activations APack:", np.mean(stats_apack["Compression Ratio"]))

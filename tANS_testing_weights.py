@@ -5,7 +5,8 @@ import math
 from tqdm import tqdm
 import os
 
-LUT_SIZE = 2**10
+LUT_EXP = 8
+LUT_SIZE = 2**LUT_EXP
 
 # import my tANS function
 from Functions import Coder, Utils, CompTensor
@@ -95,11 +96,11 @@ for model in models:
 
     offset_stream = []
 
-    for i in range(len(comp_tensors)):
+    for i in range(len(comp_tensors)): # for each tensor
         offset_stream.append([])
-        for j in range(len(comp_tensors[i])):
+        for j in range(len(comp_tensors[i])): # for each point in the tensor
             offset_stream[i].append([])
-            for k in range(len(comp_tensors[i][j].points)):
+            for k in range(len(comp_tensors[i][j].points)): 
                 offset_stream[i][j].extend(int_to_binary_list(comp_tensors[i][j].points[k].off, comp_tensors[i][j].points[k].OL))
                 
     import time
@@ -141,10 +142,10 @@ for model in models:
             tqdm.write("Error in encoding and decoding")
             break
         
-        run_times.append(run_time_taken)
-        build_times.append(build_time_taken)
-        comp_ratios.append(len(msg) * nbits / total_comp_bits)
-        bp_sym.append(total_comp_bits / len(msg))
+        all_run_times.append(run_time_taken)
+        all_build_times.append(build_time_taken)
+        all_comp_ratios.append(len(msg) * nbits / total_comp_bits)
+        all_bps.append(total_comp_bits / len(msg))
             
         # Print average stats
         avg_run_time = np.mean(run_times)
@@ -152,16 +153,6 @@ for model in models:
         avg_comp_ratio = np.mean(comp_ratios)
         avg_bp_sym = np.mean(bp_sym)
         
-        # tqdm.write(f"\tAverage run time taken: {avg_run_time:.6f} seconds")
-        # tqdm.write(f"\tAverage build time taken: {avg_build_time:.6f} seconds")
-        # tqdm.write(f"\tAverage compression ratio: {avg_comp_ratio:.6f}")
-        # tqdm.write(f"\tAverage bits per symbol: {avg_bp_sym:.6f}")
-        
-        # Add stats to all lists
-        all_run_times.append(run_times)
-        all_build_times.append(build_times)
-        all_comp_ratios.append(comp_ratios)
-        all_bps.append(bp_sym)
     # display stats in a dataframe
 
     freqs = freqs
@@ -173,7 +164,7 @@ for model in models:
                         "Bits per Symbol": [np.mean(all_bps[i]) for i in range(len(freqs))]})
 
     # save the stats to a csv file
-    stats_apack.to_csv(f"{d}stats_weights_apack.csv", index = False)
+    stats_apack.to_csv(f"{d}stats_weights_apack_{LUT_EXP}.csv", index = False)
 
     # Calculate frequency of each uint8 value
     def calculate_frequency(array):
@@ -256,7 +247,7 @@ for model in models:
                         "Bits per Symbol": [np.mean(all_bps[i]) for i in range(len(freqs))]})
 
     # save 
-    stats_256.to_csv(f"{d}stats_weights_256.csv", index = False)
+    stats_256.to_csv(f"{d}stats_weights_256_{LUT_EXP}.csv", index = False)
 
     # print the average compression ratio for each method
     print("\tAverage Compression Ratio Weights APack:", np.mean(stats_apack["Compression Ratio"]))
