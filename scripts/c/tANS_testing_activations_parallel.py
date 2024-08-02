@@ -2,12 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import math
-from tqdm import tqdm
 import os
-from multiprocessing import Pool
+import concurrent.futures
 
 # import my tANS function
-from Functions import Coder, Utils, CompTensor
+from Functions.c import runner
+from Functions.python import Utils, CompTensor
 
 LUT_EXP = 8
 LUT_SIZE = 2**LUT_EXP
@@ -78,7 +78,7 @@ def APack(model):
 
     # converting each data point to a symbol, offset pair
     comp_tensors = []
-    for i, dat in enumerate(tqdm(data, desc="\tConverting Data to CompTensors")):
+    for i, dat in enumerate(data):
         comp_tensors.append([CompTensor.CompTensor(d, s_tabs[i]) for d in dat])
 
     # Getting freqs, must be a power of 2
@@ -124,7 +124,7 @@ def APack(model):
     
     cur_stats = []
     
-    for i in tqdm(range(len(freqs)), desc="\tCompressing Layers"):
+    for i in range(len(freqs)):
         
         # open the stats file
         stats_apack = pd.read_csv(f"{d}stats_activations_apack_{LUT_EXP}.csv")
@@ -139,11 +139,11 @@ def APack(model):
         comp_ratios = []
         bp_sym = []
 
-        for j in tqdm(range(len(comp_tensors[i])), desc=f"\tLayer {i}: Compressing Tensors", leave=False):
+        for j in range(len(comp_tensors[i])):
             # Compressing the symbols
             time_start = time.time()
 
-            c = Coder.Coder(sum(freqs[i]), [i for i in range(len(freqs[i]))], freqs[i], fast=False)
+            c = runner.initCoder(sum(freqs[i], [i for i in range(len(freqs[i]))], freqs[i])) #Coder.Coder(sum(freqs[i]), [i for i in range(len(freqs[i]))], freqs[i], fast=False)
 
             time_end = time.time()
             build_time_taken = time_end - time_start
@@ -151,16 +151,16 @@ def APack(model):
             msg = [p.symbol for p in comp_tensors[i][j].points]
 
             time_start = time.time()
-            out, comp_bits = c.encode_decode(msg)
+
+            comp_bits = runner.encodeDecode(c, msg)
+            
             time_end = time.time()
             run_time_taken = time_end - time_start
+            
+            runner.freeCoder(c)
 
             # Factoring in the offset bits  
             total_comp_bits = comp_bits + len(offset_stream[i][j])
-
-            if out != msg:
-                print("Error in encoding and decoding")
-                break
 
             run_times.append(run_time_taken)
             build_times.append(build_time_taken)
@@ -234,7 +234,7 @@ def two56(model):
     
     cur_stats = []
 
-    for i in tqdm(range(len(freqs)), desc="\tCompressing Layers"):
+    for i in range(len(freqs)):
         
         # open the stats file
         stats_256 = pd.read_csv(f"{d}stats_activations_256_{LUT_EXP}.csv")
@@ -248,10 +248,10 @@ def two56(model):
         comp_ratios = []
         bp_sym = []
 
-        for j in tqdm(range(len(data[i])), desc=f"\tLayer {i}: Compressing Tensors", leave=False):
+        for j in range(len(data[i])):
             time_start = time.time()
             
-            c = Coder.Coder(sum(freqs[i]), [k for k in range(len(freqs[i]))], freqs[i], fast=False)
+            c = runner.initCoder(sum(freqs[i], [k for k in range(len(freqs[i]))], freqs[i]))
             
             time_end = time.time()
             build_time_taken = time_end - time_start
@@ -259,13 +259,13 @@ def two56(model):
             msg = list(data[i][j].flatten())
 
             time_start = time.time()
-            out, comp_bits = c.encode_decode(msg)
+            
+            comp_bits = runner.encodeDecode(c, msg)
+            
             time_end = time.time()
             run_time_taken = time_end - time_start
 
-            if out != msg:
-                tqdm.write("Error in encoding and decoding")
-                break
+            runner.freeCoder(c)
             
             run_times.append(run_time_taken)
             build_times.append(build_time_taken)
@@ -292,6 +292,7 @@ def task(args):
     function(model)
     
 if __name__ == "__main__":
-    with Pool() as p:
-        funcs = [APack, two56]
-        p.map(task, list(zip(funcs, models)))
+    funcs = [APack, two56]
+
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        results = list(executor.map(task, zip(funcs, models)))

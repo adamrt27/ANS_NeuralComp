@@ -1,4 +1,4 @@
-from Functions import Decoder, Encoder
+from Functions.python import Decoder, Encoder
 
 class Coder:
     def __init__(self, L, s_list, L_s, fast = False, dtype = "s"):

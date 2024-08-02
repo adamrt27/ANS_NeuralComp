@@ -2,15 +2,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import math
-from tqdm import tqdm
 import os
-from multiprocessing import Pool
-
-# import my tANS function
-from Functions import Coder, Utils, CompTensor
+import concurrent.futures
 
 LUT_EXP = 8
 LUT_SIZE = 2**LUT_EXP
+
+# import my tANS function
+from Functions.c import runner
+from Functions.python import Coder, Utils, CompTensor
 
 def find_max_min_in_directory(directory, start):
     max_value = float('-inf')
@@ -37,27 +37,23 @@ def find_max_min_in_directory(directory, start):
 d_base = 'trace/'
 
 models = os.listdir("trace")
-
-# check if gpt2 in models and remove if it is
-if "gpt2-xl" in models:
-    models.remove("gpt2-xl")
-
-def APack(model):
     
+def APack(model):
+
     print("Running model:", model)
     
     d = d_base + model + "/"
-        
+    
     # check if the model has already been processed
-    range_ = find_max_min_in_directory(d, "input_")
+    range_ = find_max_min_in_directory(d, "weight_")
     
     # create empty dataframe to store stats, if it doesnt exist
-    if not os.path.exists(f"{d}stats_activations_apack_{LUT_EXP}.csv"):
+    if not os.path.exists(f"{d}stats_weights_apack_{LUT_EXP}.csv"):
         stats_apack = pd.DataFrame(columns = ["Layer", "Run Time", "Build Time", "Compression Ratio", "Bits per Symbol"])
-        stats_apack.to_csv(f"{d}stats_activations_apack_{LUT_EXP}.csv", index = False)
+        stats_apack.to_csv(f"{d}stats_weights_apack_{LUT_EXP}.csv", index = False)
     else:
-        stats_apack = pd.read_csv(f"{d}stats_activations_apack_{LUT_EXP}.csv")
-
+        stats_apack = pd.read_csv(f"{d}stats_weights_apack_{LUT_EXP}.csv")
+        
     # check if the model has already been processed
     if len(stats_apack) == range_[1] - range_[0]:
         print("Model has already been processed")
@@ -65,21 +61,22 @@ def APack(model):
             
     # importing the data
     print("\tImporting data")
-    data = [np.load(f"{d}input_{i}.npy") for i in range(range_[0],range_[1])]
-
+    data = [np.load(f"{d}weight_{i}.npy") for i in range(range_[0],range_[1])]
 
     # importing the symbol table
     print("\tImporting symbol tables")
 
-    s_tabs = [ pd.read_csv(f"{d}input_{i}_flat.apack", sep = " ", header = None) for i in range(range_[0],range_[1])]
+    s_tabs = [ pd.read_csv(f"{d}weight_{i}_flat.apack", sep = " ", header = None) for i in range(range_[0],range_[1])]
 
     for s_tab in s_tabs:            
         s_tab.columns = ["vmin","OL","abits","obits","vcnt"]
 
     # converting each data point to a symbol, offset pair
+
     comp_tensors = []
-    for i, dat in enumerate(tqdm(data, desc="\tConverting Data to CompTensors")):
-        comp_tensors.append([CompTensor.CompTensor(d, s_tabs[i]) for d in dat])
+    for i, dat in enumerate(data):
+        comp_tensors.append([CompTensor.CompTensor(dat.flatten(), s_tabs[i])])
+
 
     # Getting freqs, must be a power of 2
     print("\tGetting frequencies APack")
@@ -111,102 +108,91 @@ def APack(model):
 
     offset_stream = []
 
-    for i in range(len(comp_tensors)):
+    for i in range(len(comp_tensors)): # for each tensor
         offset_stream.append([])
-        for j in range(len(comp_tensors[i])):
+        for j in range(len(comp_tensors[i])): # for each point in the tensor
             offset_stream[i].append([])
-            for k in range(len(comp_tensors[i][j].points)):
+            for k in range(len(comp_tensors[i][j].points)): 
                 offset_stream[i][j].extend(int_to_binary_list(comp_tensors[i][j].points[k].off, comp_tensors[i][j].points[k].OL))
                 
     import time
-    print("\tCompressing Activations APack")
-    nbits = 8 # takes 4 bits to represent each symbol
+    print("\tCompressing Weights APack")
+
+    nbits = 8  # Takes 8 bits to represent each symbol
     
     cur_stats = []
-    
-    for i in tqdm(range(len(freqs)), desc="\tCompressing Layers"):
-        
+
+    for i in range(len(freqs)):
         # open the stats file
-        stats_apack = pd.read_csv(f"{d}stats_activations_apack_{LUT_EXP}.csv")
+        stats_apack = pd.read_csv(f"{d}stats_weights_apack_{LUT_EXP}.csv")
         
         # check if the layer has already been processed
         if i in stats_apack["Layer"].values:
+            print(f"\tLayer {i} has already been processed")
             cur_stats.append(dict(stats_apack[stats_apack["Layer"] == i].iloc[0]))
             continue
         
-        run_times = []
-        build_times = []
-        comp_ratios = []
-        bp_sym = []
+        j = 0
 
-        for j in tqdm(range(len(comp_tensors[i])), desc=f"\tLayer {i}: Compressing Tensors", leave=False):
-            # Compressing the symbols
-            time_start = time.time()
+        # Compressing the symbols
+        time_start = time.time()
+        
+        c = runner.initCoder(sum(freqs[i]), [i for i in range(len(freqs[i]))], freqs[i])
+        
+        time_end = time.time()
+        build_time_taken = time_end - time_start
 
-            c = Coder.Coder(sum(freqs[i]), [i for i in range(len(freqs[i]))], freqs[i], fast=False)
+        msg = [p.symbol for p in comp_tensors[i][j].points]
 
-            time_end = time.time()
-            build_time_taken = time_end - time_start
-
-            msg = [p.symbol for p in comp_tensors[i][j].points]
-
-            time_start = time.time()
-            out, comp_bits = c.encode_decode(msg)
-            time_end = time.time()
-            run_time_taken = time_end - time_start
-
-            # Factoring in the offset bits  
-            total_comp_bits = comp_bits + len(offset_stream[i][j])
-
-            if out != msg:
-                print("Error in encoding and decoding")
-                break
-
-            run_times.append(run_time_taken)
-            build_times.append(build_time_taken)
-            comp_ratios.append(len(msg) * nbits / total_comp_bits)
-            bp_sym.append(total_comp_bits / len(msg))
+        time_start = time.time()
+        
+        comp_bits = runner.encodeDecode(c, msg)
+        
+        time_end = time.time()
+        run_time_taken = time_end - time_start
+        
+        runner.freeCoder(c)
+        
+        # Factoring in the offset bits  
+        total_comp_bits = comp_bits + len(offset_stream[i][j])
 
         # update the stats dataframe
         cur_stats.append({"Layer": i,
-                        "Run Time": np.mean(run_times),
-                        "Build Time": np.mean(build_times),
-                        "Compression Ratio": np.mean(comp_ratios),
-                        "Bits per Symbol": np.mean(bp_sym)})
-        
-        stats_apack = pd.DataFrame(cur_stats)
+                                            "Run Time": run_time_taken,
+                                            "Build Time": build_time_taken,
+                                            "Compression Ratio": len(msg) * nbits / total_comp_bits,
+                                            "Bits per Symbol": total_comp_bits / len(msg)})
         
         # save the stats to a csv file
-        stats_apack.to_csv(f"{d}stats_activations_apack_{LUT_EXP}.csv", index = False)
+        stats_apack.to_csv(f"{d}stats_weights_apack_{LUT_EXP}.csv", index = False)
 
     # save the stats to a csv file
-    stats_apack.to_csv(f"{d}stats_activations_apack_{LUT_EXP}.csv", index = False)
+    stats_apack.to_csv(f"{d}stats_weights_apack_{LUT_EXP}.csv", index = False)
         
-    
-   
 def two56(model):
     
     print("Running model:", model)
     
     d = d_base + model + "/"
-        
-    range_ = find_max_min_in_directory(d, "input_")
-        
-    # create empty dataframe to store stats, if it doesnt exist
-    if not os.path.exists(f"{d}stats_activations_256_{LUT_EXP}.csv"):
-        stats_256 = pd.DataFrame(columns = ["Layer", "Run Time", "Build Time", "Compression Ratio", "Bits per Symbol"])
-        stats_256.to_csv(f"{d}stats_activations_256_{LUT_EXP}.csv", index = False)
-    else:
-        stats_256 = pd.read_csv(f"{d}stats_activations_256_{LUT_EXP}.csv")
+    
+    # check if the model has already been processed
+    range_ = find_max_min_in_directory(d, "weight_")
 
+    # create empty dataframe to store stats, if it doesnt exist
+    if not os.path.exists(f"{d}stats_weights_256_{LUT_EXP}.csv"):
+        stats_256 = pd.DataFrame(columns = ["Layer", "Run Time", "Build Time", "Compression Ratio", "Bits per Symbol"])
+        stats_256.to_csv(f"{d}stats_weights_256_{LUT_EXP}.csv", index = False)
+    else:
+        stats_256 = pd.read_csv(f"{d}stats_weights_256_{LUT_EXP}.csv")
+        
     # check if the model has already been processed
     if len(stats_256) == range_[1] - range_[0]:
         print("Model has already been processed")
         return
-                
+                    
     # importing the data
     print("\tImporting data")
-    data = [np.load(f"{d}input_{i}.npy") for i in range(range_[0],range_[1])]
+    data = [np.load(f"{d}weight_{i}.npy") for i in range(range_[0],range_[1])]
     
     # Calculate frequency of each uint8 value
     def calculate_frequency(array):
@@ -229,69 +215,62 @@ def two56(model):
     freqs = [Utils.rescale_list_to_power_of_2(freq, LUT_SIZE) for freq in freqs]
 
     import time
-    print("\tCompressing Activations 256")
-    nbits = 8 # takes 4 bits to represent each symbol
+    print("\tCompressing Weights 256")
+
+    nbits = 8  # Takes 8 bits to represent each symbol
     
     cur_stats = []
 
-    for i in tqdm(range(len(freqs)), desc="\tCompressing Layers"):
+    for i in range(len(freqs)):
         
         # open the stats file
-        stats_256 = pd.read_csv(f"{d}stats_activations_256_{LUT_EXP}.csv")
+        stats_256 = pd.read_csv(f"{d}stats_weights_256_{LUT_EXP}.csv")
         
+        # check if the layer has already been processed
         if i in stats_256["Layer"].values:
+            print(f"\tLayer {i} has already been processed")
             cur_stats.append(dict(stats_256[stats_256["Layer"] == i].iloc[0]))
             continue
         
-        run_times = []
-        build_times = []
-        comp_ratios = []
-        bp_sym = []
+        time_start = time.time()
+        
+        c = runner.initCoder(sum(freqs[i]), [i for i in range(len(freqs[i]))], freqs[i])
+        
+        time_end = time.time()
+        build_time_taken = time_end - time_start
 
-        for j in tqdm(range(len(data[i])), desc=f"\tLayer {i}: Compressing Tensors", leave=False):
-            time_start = time.time()
-            
-            c = Coder.Coder(sum(freqs[i]), [k for k in range(len(freqs[i]))], freqs[i], fast=False)
-            
-            time_end = time.time()
-            build_time_taken = time_end - time_start
+        msg = list(data[i].flatten())
 
-            msg = list(data[i][j].flatten())
-
-            time_start = time.time()
-            out, comp_bits = c.encode_decode(msg)
-            time_end = time.time()
-            run_time_taken = time_end - time_start
-
-            if out != msg:
-                tqdm.write("Error in encoding and decoding")
-                break
-            
-            run_times.append(run_time_taken)
-            build_times.append(build_time_taken)
-            comp_ratios.append(len(msg) * nbits / comp_bits)
-            bp_sym.append(comp_bits / len(msg))
-            
+        time_start = time.time()
+       
+        comp_bits = runner.encodeDecode(c, msg)
+        
+        time_end = time.time()
+        run_time_taken = time_end - time_start
+        
+        runner.freeCoder(c)
+        
         # update the stats dataframe
         cur_stats.append({"Layer": i,
-                        "Run Time": np.mean(run_times),
-                        "Build Time": np.mean(build_times),
-                        "Compression Ratio": np.mean(comp_ratios),
-                        "Bits per Symbol": np.mean(bp_sym)})
+                                    "Run Time": run_time_taken,
+                                    "Build Time": build_time_taken,
+                                    "Compression Ratio": len(msg) * nbits / comp_bits,
+                                    "Bits per Symbol": comp_bits / len(msg)})
         
         stats_256 = pd.DataFrame(cur_stats)
         
         # save the stats to a csv file
-        stats_256.to_csv(f"{d}stats_activations_256_{LUT_EXP}.csv", index = False)
+        stats_256.to_csv(f"{d}stats_weights_256_{LUT_EXP}.csv", index = False)
         
-    # save
-    stats_256.to_csv(f"{d}stats_activations_256_{LUT_EXP}.csv", index = False)
-   
+    # save 
+    stats_256.to_csv(f"{d}stats_weights_256_{LUT_EXP}.csv", index = False)
+    
 def task(args):
     function, model = args
     function(model)
     
 if __name__ == "__main__":
-    with Pool() as p:
-        funcs = [APack, two56]
-        p.map(task, list(zip(funcs, models)))
+    funcs = [APack, two56]
+    
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        results = list(executor.map(task, zip(funcs, models)))
