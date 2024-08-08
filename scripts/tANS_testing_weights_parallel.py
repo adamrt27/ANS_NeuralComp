@@ -8,10 +8,8 @@ import concurrent.futures
 LUT_EXP = 8
 LUT_SIZE = 2**LUT_EXP
 
-# import my tANS function, after adding the path to the Functions folder
-import sys
-sys.path.append("../Functions")
-from Functions.c import runner
+# import my tANS function
+from Functions.c_int import runner
 from Functions.python import Coder, Utils, CompTensor
 
 def find_max_min_in_directory(directory, start):
