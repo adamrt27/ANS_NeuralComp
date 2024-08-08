@@ -9,6 +9,16 @@ LUT_EXP = 8
 LUT_SIZE = 2**LUT_EXP
 
 # import my tANS function
+import sys
+# Get the current directory of the script
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Get the parent directory (which should be the root of your project)
+parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
+
+# Add the parent directory to sys.path
+sys.path.append(parent_dir)
+
 from Functions.c_int import runner
 from Functions.python import Coder, Utils, CompTensor
 

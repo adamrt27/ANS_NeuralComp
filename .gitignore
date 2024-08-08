@@ -6,7 +6,6 @@ build/
 __pycache__/
 
 # C output files
-*.so
 *.o 
 
 # Mac ouputs
