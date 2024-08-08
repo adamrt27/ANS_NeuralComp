@@ -50,6 +50,8 @@ models = os.listdir("trace")
 
 models = [model for model in models if os.path.isdir(f"trace/{model}")]
 
+print("Models:", models, flush=True)
+
 # check if gpt2 in models and remove if it is
 if "gpt2-xl" in models:
     models.remove("gpt2-xl")
@@ -304,7 +306,15 @@ def task(args):
     function(model)
     
 if __name__ == "__main__":
+    
+    from itertools import product
+
     funcs = [APack, two56]
+    
+    # Generate all combinations of funcs and models
+    combinations = list(product(funcs, models))
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
-        results = list(executor.map(task, zip(funcs, models)))
+        results = list(executor.map(task, combinations))
+
+    print(results)
