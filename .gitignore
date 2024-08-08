@@ -18,4 +18,8 @@ __pycache__/
 # pytest
 .pytest_cache/
 
+# traces from networks
 trace/
+
+# logs from SciNet
+scripts/logs/   

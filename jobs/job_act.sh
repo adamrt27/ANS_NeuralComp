@@ -5,12 +5,13 @@
 #SBATCH --ntasks-per-node=40
 #SBATCH --time=24:00:00
 #SBATCH --job-name tANS_act
+#SBATCH --output=/home/l/lungboy/tadam/scratch/Moshovos/ANS_NeuralComp/jobs/logs/tANS_act_%j.out
 
 module load NiaEnv/2019b python/3.11.5
 
 source ~/.virtualenvs/pytorch_env/bin/activate
 
 echo "Running tANS testing with activations"
-python tANS_testing_activations_parallel.py
+python scripts/tANS_testing_activations_parallel.py
 
 echo "Done"

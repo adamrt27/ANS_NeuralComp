@@ -5,7 +5,17 @@ import math
 import os
 import concurrent.futures
 
-# import my tANS function
+# import my tANS function, after adding the path to the Functions folder
+import sys
+# Get the current directory of the script
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Get the parent directory (which should be the root of your project)
+parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
+
+# Add the parent directory to sys.path
+sys.path.append(parent_dir)
+
 from Functions.c import runner
 from Functions.python import Utils, CompTensor
 
@@ -37,6 +47,8 @@ def find_max_min_in_directory(directory, start):
 d_base = 'trace/'
 
 models = os.listdir("trace")
+
+models = [model for model in models if os.path.isdir(f"trace/{model}")]
 
 # check if gpt2 in models and remove if it is
 if "gpt2-xl" in models:
@@ -143,7 +155,7 @@ def APack(model):
             # Compressing the symbols
             time_start = time.time()
 
-            c = runner.initCoder(sum(freqs[i], [i for i in range(len(freqs[i]))], freqs[i])) #Coder.Coder(sum(freqs[i]), [i for i in range(len(freqs[i]))], freqs[i], fast=False)
+            c = runner.initCoder(sum(freqs[i]), [i for i in range(len(freqs[i]))], freqs[i])
 
             time_end = time.time()
             build_time_taken = time_end - time_start
@@ -251,7 +263,7 @@ def two56(model):
         for j in range(len(data[i])):
             time_start = time.time()
             
-            c = runner.initCoder(sum(freqs[i], [k for k in range(len(freqs[i]))], freqs[i]))
+            c = runner.initCoder(sum(freqs[i]), [k for k in range(len(freqs[i]))], freqs[i])
             
             time_end = time.time()
             build_time_taken = time_end - time_start

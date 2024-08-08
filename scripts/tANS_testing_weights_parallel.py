@@ -8,7 +8,9 @@ import concurrent.futures
 LUT_EXP = 8
 LUT_SIZE = 2**LUT_EXP
 
-# import my tANS function
+# import my tANS function, after adding the path to the Functions folder
+import sys
+sys.path.append("../Functions")
 from Functions.c import runner
 from Functions.python import Coder, Utils, CompTensor
 
